@@ -42,7 +42,7 @@ var (
 
 // Transaction types.
 const (
-	LegacyTxType = iota
+	LegacyTxType = iota // 历史遗留的交易类型
 	AccessListTxType
 	DynamicFeeTxType
 )
@@ -395,12 +395,15 @@ func (tx *Transaction) Size() common.StorageSize {
 // WithSignature returns a new transaction with the given signature.
 // This signature needs to be in the [R || S || V] format where V is 0 or 1.
 func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, error) {
+	// 获取签名信息
 	r, s, v, err := signer.SignatureValues(tx, sig)
 	if err != nil {
 		return nil, err
 	}
+	// 将原有交易信息进行一份拷贝
 	cpy := tx.inner.copy()
 	cpy.setSignatureValues(signer.ChainID(), v, r, s)
+	// 重新组织tx信息返回
 	return &Transaction{inner: cpy, time: tx.time}, nil
 }
 

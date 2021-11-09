@@ -244,6 +244,10 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 
 // toTransaction converts the arguments to a transaction.
 // This assumes that setDefaults has been called.
+// 组装Transaction结构数据
+// args.MaxFeePerGas != nil  ==> DynamicFeeTx
+// args.AccessList != nil  ==> AccessListTx
+// default  ==> LegacyTx
 func (args *TransactionArgs) toTransaction() *types.Transaction {
 	var data types.TxData
 	switch {

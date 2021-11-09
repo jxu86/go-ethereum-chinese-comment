@@ -24,7 +24,7 @@ import (
 
 type DynamicFeeTx struct {
 	ChainID    *big.Int
-	Nonce      uint64
+	Nonce      uint64 // 发送者发起的交易总数
 	GasTipCap  *big.Int
 	GasFeeCap  *big.Int
 	Gas        uint64

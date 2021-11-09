@@ -241,12 +241,15 @@ type TxPool struct {
 
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
 	journal *txJournal  // Journal of local transaction to back up to disk
-
-	pending map[common.Address]*txList   // All currently processable transactions
-	queue   map[common.Address]*txList   // Queued but non-processable transactions
-	beats   map[common.Address]time.Time // Last heartbeat from each known account
-	all     *txLookup                    // All transactions to allow lookups
-	priced  *txPricedList                // All transactions sorted by price
+	// 当前所有可被处理的交易列表
+	pending map[common.Address]*txList // All currently processable transactions
+	// 当前所有不可被处理的交易队列
+	queue map[common.Address]*txList   // Queued but non-processable transactions
+	beats map[common.Address]time.Time // Last heartbeat from each known account
+	// 所有的交易列表，key为交易hash
+	all *txLookup // All transactions to allow lookups
+	// 将all中的交易按照gas price进行排列的数组，gas price相同按Nonce升序排列
+	priced *txPricedList // All transactions sorted by price
 
 	chainHeadCh     chan ChainHeadEvent
 	chainHeadSub    event.Subscription
@@ -720,6 +723,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 		return old != nil, nil
 	}
 	// New transaction isn't replacing a pending one, push into queue
+	// 将交易添加到equeu队列
 	replaced, err = pool.enqueueTx(hash, tx, isLocal, true)
 	if err != nil {
 		return false, err
@@ -873,6 +877,7 @@ func (pool *TxPool) AddRemote(tx *types.Transaction) error {
 }
 
 // addTxs attempts to queue a batch of transactions if they are valid.
+// 将一笔普通交易添加到TxPool中
 func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 	// Filter out known ones without obtaining the pool lock or recovering signatures
 	var (

@@ -92,11 +92,14 @@ func LatestSignerForChainID(chainID *big.Int) Signer {
 
 // SignTx signs the transaction using the given signer and private key.
 func SignTx(tx *Transaction, s Signer, prv *ecdsa.PrivateKey) (*Transaction, error) {
+	// 对交易进行哈希
 	h := s.Hash(tx)
+	// 生成签名
 	sig, err := crypto.Sign(h[:], prv)
 	if err != nil {
 		return nil, err
 	}
+	// 将签名数据填充到Tx信息中
 	return tx.WithSignature(s, sig)
 }
 
