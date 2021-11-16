@@ -138,9 +138,9 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	}
 
 	var (
-		op          OpCode        // current opcode
-		mem         = NewMemory() // bound memory
-		stack       = newstack()  // local stack
+		op          OpCode        // current opcode 当前操作码
+		mem         = NewMemory() // bound memory 内存
+		stack       = newstack()  // local stack 栈
 		callContext = &ScopeContext{
 			Memory:   mem,
 			Stack:    stack,
@@ -150,12 +150,16 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// It's theoretically possible to go above 2^64. The YP defines the PC
 		// to be uint256. Practically much less so feasible.
 		pc   = uint64(0) // program counter
-		cost uint64
+		cost uint64      // gas花费
 		// copies used by tracer
-		pcCopy  uint64 // needed for the deferred Tracer
+		// debug使用
+		pcCopy uint64 // needed for the deferred Tracer
+		// debug使用
 		gasCopy uint64 // for Tracer to log gas remaining before execution
-		logged  bool   // deferred Tracer should ignore already logged steps
-		res     []byte // result of the opcode execution function
+		// debug使用
+		logged bool // deferred Tracer should ignore already logged steps
+		// 当前操作码执行函数的返回值
+		res []byte // result of the opcode execution function
 	)
 	// Don't move this deferrred function, it's placed before the capturestate-deferred method,
 	// so that it get's executed _after_: the capturestate needs the stacks before
@@ -216,6 +220,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 			}
 		}
 		// Static portion of gas
+		// 计算扣除固定静态(字节码)操作gas值，如果是就返回outofgas错误
 		cost = operation.constantGas // For tracing
 		if !contract.UseGas(operation.constantGas) {
 			return nil, ErrOutOfGas
@@ -226,6 +231,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// the operation
 		// Memory check needs to be done prior to evaluating the dynamic gas portion,
 		// to detect calculation overflows
+		// 计算内存 按操作所需要的操作数来算
 		if operation.memorySize != nil {
 			memSize, overflow := operation.memorySize(stack)
 			if overflow {
@@ -240,6 +246,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// Dynamic portion of gas
 		// consume the gas and return an error if not enough gas is available.
 		// cost is explicitly set so that the capture state defer method can get the proper cost
+		// 校验cost 调用前面提到的costfunc 计算本次操作动态cost消耗
 		if operation.dynamicGas != nil {
 			var dynamicCost uint64
 			dynamicCost, err = operation.dynamicGas(in.evm, contract, stack, mem, memorySize)
@@ -248,6 +255,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 				return nil, ErrOutOfGas
 			}
 		}
+		// 如果本次操作需要消耗memory ，扩展memory
 		if memorySize > 0 {
 			mem.Resize(memorySize)
 		}
@@ -261,18 +269,19 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		res, err = operation.execute(&pc, in, callContext)
 		// if the operation clears the return data (e.g. it has returning data)
 		// set the last return to the result of the operation.
+		// 如果遇到return 设置返回值
 		if operation.returns {
 			in.returnData = res
 		}
 
 		switch {
-		case err != nil:
+		case err != nil: // 报错
 			return nil, err
-		case operation.reverts:
+		case operation.reverts: // 出错回滚
 			return res, ErrExecutionReverted
-		case operation.halts:
+		case operation.halts: // 停止
 			return res, nil
-		case !operation.jumps:
+		case !operation.jumps: // 跳转
 			pc++
 		}
 	}

@@ -279,18 +279,20 @@ func (f *BlockFetcher) FilterHeaders(peer string, headers []*types.Header, time 
 	// Send the filter channel to the fetcher
 	filter := make(chan *headerFilterTask)
 
-	select {
+	select { // 先发一个通信用的 channel 给 headerFilter
 	case f.headerFilter <- filter:
 	case <-f.quit:
 		return nil
 	}
 	// Request the filtering of the header list
+	// 将要过滤的 header 发送给 filter
 	select {
 	case filter <- &headerFilterTask{peer: peer, headers: headers, time: time}:
 	case <-f.quit:
 		return nil
 	}
 	// Retrieve the headers remaining after filtering
+	// 再从 filter 中获取过滤结果
 	select {
 	case task := <-filter:
 		return task.headers
@@ -384,7 +386,7 @@ func (f *BlockFetcher) loop() {
 		case notification := <-f.notify:
 			// A block was announced, make sure the peer isn't DOSing us
 			blockAnnounceInMeter.Mark(1)
-
+			// 判断这个节点已经通知的、但是还未下载成功的哈希的数量。
 			count := f.announces[notification.origin] + 1
 			if count > hashLimit {
 				log.Debug("Peer exceeded outstanding announces", "peer", notification.origin, "limit", hashLimit)
@@ -392,6 +394,7 @@ func (f *BlockFetcher) loop() {
 				break
 			}
 			// If we have a valid block number, check that it's potentially useful
+			// 确保当前通知的这个区块不会太旧（比本地区块高度小 maxUncleDist）或太新（比本地区块高度大 maxQueueDist）
 			if notification.number > 0 {
 				if dist := int64(notification.number) - int64(f.chainHeight()); dist < -maxUncleDist || dist > maxQueueDist {
 					log.Debug("Peer discarded announcement", "peer", notification.origin, "number", notification.number, "hash", notification.hash, "distance", dist)
@@ -400,6 +403,7 @@ func (f *BlockFetcher) loop() {
 				}
 			}
 			// All is well, schedule the announce if block's not yet downloading
+			// 确保当前通知的区块还未开始下载
 			if _, ok := f.fetching[notification.hash]; ok {
 				break
 			}
@@ -431,10 +435,11 @@ func (f *BlockFetcher) loop() {
 			f.forgetHash(hash)
 			f.forgetBlock(hash)
 
-		case <-fetchTimer.C:
+		case <-fetchTimer.C: // 下载中
 			// At least one block's timer ran out, check for needing retrieval
 			request := make(map[string][]common.Hash)
-
+			// 选择要下载的区块，从 announced 转移到 fetching 中，
+			// 并将要下载的哈希填充到 request 中
 			for hash, announces := range f.announced {
 				// In current LES protocol(les2/les3), only header announce is
 				// available, no need to wait too much time for header broadcast.
@@ -455,6 +460,7 @@ func (f *BlockFetcher) loop() {
 				}
 			}
 			// Send out all block header requests
+			// 发送下载 header 的请求
 			for peer, hashes := range request {
 				log.Trace("Fetching scheduled headers", "peer", peer, "list", hashes)
 
@@ -471,6 +477,7 @@ func (f *BlockFetcher) loop() {
 				}()
 			}
 			// Schedule the next fetch if blocks are still pending
+			// 重新设置下次的下载发起时间
 			f.rescheduleFetch(fetchTimer)
 
 		case <-completeTimer.C:
@@ -521,6 +528,7 @@ func (f *BlockFetcher) loop() {
 				hash := header.Hash()
 
 				// Filter fetcher-requested headers from other synchronisation algorithms
+				// 判断是否是我们正在下载的 header
 				if announce := f.fetching[hash]; announce != nil && announce.origin == task.peer && f.fetched[hash] == nil && f.completing[hash] == nil && f.queued[hash] == nil {
 					// If the delivered header does not match the promised number, drop the announcer
 					if header.Number.Uint64() != announce.number {
@@ -540,11 +548,14 @@ func (f *BlockFetcher) loop() {
 						continue
 					}
 					// Only keep if not imported by other means
+					// 判断此区块在本地是否已存在
 					if f.getBlock(hash) == nil {
 						announce.header = header
 						announce.time = task.time
 
 						// If the block is empty (header only), short circuit into the final import queue
+						// 判断是否是空区块。
+						// 对于空区块，直接加入到 Fetcher.completing 中
 						if header.TxHash == types.EmptyRootHash && header.UncleHash == types.EmptyUncleHash {
 							log.Trace("Block empty, skipping body retrieval", "peer", announce.origin, "number", header.Number, "hash", header.Hash())
 
@@ -556,13 +567,16 @@ func (f *BlockFetcher) loop() {
 							continue
 						}
 						// Otherwise add to the list of blocks needing completion
+						// 非空区块，保存在 incomplete 中
 						incomplete = append(incomplete, announce)
 					} else {
 						log.Trace("Block already imported, discarding header", "peer", announce.origin, "number", header.Number, "hash", header.Hash())
+						// 本地忆存在这个区块
 						f.forgetHash(hash)
 					}
 				} else {
 					// BlockFetcher doesn't know about it, add to the return list
+					// 不是我们想要下载的区块
 					unknown = append(unknown, header)
 				}
 			}

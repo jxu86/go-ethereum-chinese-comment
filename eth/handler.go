@@ -439,7 +439,7 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 	peers := h.peers.peersWithoutBlock(hash)
 
 	// If propagation is requested, send to a subset of the peer
-	if propagate {
+	if propagate { // //发送区块数据
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
 		var td *big.Int
 		if parent := h.chain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
@@ -457,7 +457,7 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 		return
 	}
 	// Otherwise if the block is indeed in out own chain, announce it
-	if h.chain.HasBlock(hash, block.NumberU64()) {
+	if h.chain.HasBlock(hash, block.NumberU64()) { // 发送区块哈希
 		for _, peer := range peers {
 			peer.AsyncSendNewBlockHash(block)
 		}
@@ -509,6 +509,7 @@ func (h *handler) BroadcastTransactions(txs types.Transactions) {
 }
 
 // minedBroadcastLoop sends mined blocks to connected peers.
+// 发送打包好的区块给其他连接的peer
 func (h *handler) minedBroadcastLoop() {
 	defer h.wg.Done()
 

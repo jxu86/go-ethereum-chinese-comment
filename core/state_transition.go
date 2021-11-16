@@ -314,9 +314,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		ret   []byte
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
 	)
-	if contractCreation {
+	if contractCreation { // 创建智能合约
 		ret, _, st.gas, vmerr = st.evm.Create(sender, st.data, st.gas, st.value)
-	} else {
+	} else { // 调用合约
 		// Increment the nonce for the next transaction
 		st.state.SetNonce(msg.From(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = st.evm.Call(sender, st.to(), st.data, st.gas, st.value)
