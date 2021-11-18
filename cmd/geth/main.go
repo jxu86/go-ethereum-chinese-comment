@@ -312,12 +312,14 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
-
+	// 准备操作内存缓存配额并设置度量系统
 	prepare(ctx)
+	// 加载配置和注册服务
 	stack, backend := makeFullNode(ctx)
 	defer stack.Close()
-
+	// 启动节点
 	startNode(ctx, stack, backend)
+	// 守护当前线程
 	stack.Wait()
 	return nil
 }

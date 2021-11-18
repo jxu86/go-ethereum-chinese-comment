@@ -699,6 +699,9 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	}
 	// Try to replace an existing transaction in the pending pool
 	from, _ := types.Sender(pool.signer, tx) // already validated
+	// 判断当前交易在pending队列中是否存在nonce值相同的交易。
+	// 存在则判断当前交易所设置的gasprice是否超过设置的PriceBump百分比，超过则替换覆盖已存在的交易，
+	// 否则报错返回替换交易gasprice过低，并且把它扔到queue队列中(enqueueTx)
 	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
 		// Nonce already pending, check if required price bump is met
 		inserted, old := list.Add(tx, pool.config.PriceBump)
@@ -886,7 +889,7 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 	)
 	for i, tx := range txs {
 		// If the transaction is known, pre-set the error slot
-		// 过滤池中已经存在的交易
+		// 过滤池中已经存在的交易，Get方法会先查询本地是否有，没有再查remotes中
 		if pool.all.Get(tx.Hash()) != nil {
 			errs[i] = ErrAlreadyKnown
 			knownTxMeter.Mark(1)

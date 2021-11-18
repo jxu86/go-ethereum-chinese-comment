@@ -433,6 +433,7 @@ func (s *PrivateAccountAPI) signTransaction(ctx context.Context, args *Transacti
 		return nil, err
 	}
 	// Set some sanity defaults and terminate on failure
+	// 设置一下数据（nonce，value，gas，chainID等），判断交易是否满足条件
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
 	}

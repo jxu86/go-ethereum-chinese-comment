@@ -522,6 +522,7 @@ func (h *handler) minedBroadcastLoop() {
 }
 
 // txBroadcastLoop announces new transactions to connected peers.
+// 广播交易
 func (h *handler) txBroadcastLoop() {
 	defer h.wg.Done()
 	for {
