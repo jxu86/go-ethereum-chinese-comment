@@ -457,14 +457,16 @@ func answerGetPooledTransactions(backend Backend, query GetPooledTransactionsPac
 	return hashes, txs
 }
 
+// 处理其他节点广播过来的交易(P2P)
 func handleTransactions(backend Backend, msg Decoder, peer *Peer) error {
 	// Transactions arrived, make sure we have a valid and fresh chain to handle them
 	if !backend.AcceptTxs() {
 		return nil
 	}
 	// Transactions can be processed, parse all of them and deliver to the pool
+	// TransactionsPacket []*types.Transaction
 	var txs TransactionsPacket
-	if err := msg.Decode(&txs); err != nil {
+	if err := msg.Decode(&txs); err != nil { // 把消息解码成Transaction数组
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
 	for i, tx := range txs {
@@ -472,6 +474,7 @@ func handleTransactions(backend Backend, msg Decoder, peer *Peer) error {
 		if tx == nil {
 			return fmt.Errorf("%w: transaction %d is nil", errDecode, i)
 		}
+		// 记录一下这个交易为已知交易(对于本节点)
 		peer.markTransaction(tx.Hash())
 	}
 	return backend.Handle(peer, &txs)

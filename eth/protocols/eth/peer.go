@@ -171,6 +171,7 @@ func (p *Peer) markBlock(hash common.Hash) {
 
 // markTransaction marks a transaction as known for the peer, ensuring that it
 // will never be propagated to this particular peer.
+// 记录一下这个交易为已知交易(对于本节点)
 func (p *Peer) markTransaction(hash common.Hash) {
 	// If we reached the memory allowance, drop a previously known transaction hash
 	for p.knownTxs.Cardinality() >= maxKnownTxs {

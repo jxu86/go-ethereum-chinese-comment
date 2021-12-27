@@ -116,6 +116,7 @@ func defaultNodeConfig() node.Config {
 // makeConfigNode loads geth configuration and creates a blank node instance.
 func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	// Load defaults.
+	// 加载默认配置
 	cfg := gethConfig{
 		Eth:     ethconfig.Defaults,  // 以太坊节点的主要参数配置
 		Node:    defaultNodeConfig(), // 主要用于配置对外提供的RPC节点服务
@@ -149,6 +150,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
+// 加载geth的配置和创建Ethereum、backend实例
 func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.OverrideLondonFlag.Name) {

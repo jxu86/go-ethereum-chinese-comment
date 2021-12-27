@@ -65,15 +65,19 @@ const (
 // itself up-to-date by verifying the liveness of neighbors and requesting their node
 // records when announcements of a new record version are received.
 type Table struct {
-	mutex   sync.Mutex        // protects buckets, bucket content, nursery, rand
+	mutex sync.Mutex // protects buckets, bucket content, nursery, rand
+	// 类型是[nBuckets]*bucket，可以看到这是一个数组，一个bucket就是一个K-桶，一共256个bucket；
 	buckets [nBuckets]*bucket // index of known nodes by distance
-	nursery []*node           // bootstrap nodes
-	rand    *mrand.Rand       // source of randomness, periodically reseeded
+	// 信任的种子节点，一个节点启动的时候首先最多能够连接35个种子节点，其中5个是由以太坊官方提供的，另外30个是从数据库里取的；
+	nursery []*node     // bootstrap nodes
+	rand    *mrand.Rand // source of randomness, periodically reseeded
 	ips     netutil.DistinctNetSet
 
-	log        log.Logger
-	db         *enode.DB // database of known nodes
-	net        transport
+	log log.Logger
+	// 以太坊中有两个数据库实例，一个是用来储存区块链，另一个用来储存p2p的节点
+	db  *enode.DB // database of known nodes
+	net transport
+	// 刷新K桶事件的管道，其他节点或者其他应用场景可以通过这个管道强制刷新该节点的k桶
 	refreshReq chan chan struct{}
 	initDone   chan struct{}
 	closeReq   chan struct{}
@@ -100,6 +104,7 @@ type bucket struct {
 }
 
 func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger) (*Table, error) {
+	// 初始化Table类
 	tab := &Table{
 		net:        t,
 		db:         db,
@@ -111,9 +116,11 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 		ips:        netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
 		log:        log,
 	}
+	// 加载种子节点
 	if err := tab.setFallbackNodes(bootnodes); err != nil {
 		return nil, err
 	}
+	// 首先，初始化K桶
 	for i := range tab.buckets {
 		tab.buckets[i] = &bucket{
 			ips: netutil.DistinctNetSet{Subnet: bucketSubnet, Limit: bucketIPLimit},

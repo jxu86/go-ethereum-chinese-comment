@@ -122,6 +122,7 @@ func New(conf *Config) (*Node, error) {
 	node.ephemKeystore = ephemeralKeystore
 
 	// Initialize the p2p server. This creates the node key and discovery databases.
+	// 初始化P2P服务配置
 	node.server.Config.PrivateKey = node.config.NodeKey()
 	node.server.Config.Name = node.config.NodeName()
 	node.server.Config.Logger = node.log
@@ -260,6 +261,7 @@ func (n *Node) doClose(errs []error) error {
 func (n *Node) openEndpoints() error {
 	// start networking endpoints
 	n.log.Info("Starting peer-to-peer node", "instance", n.server.Name)
+	// 开启P2P服务
 	if err := n.server.Start(); err != nil {
 		return convertFileLockError(err)
 	}

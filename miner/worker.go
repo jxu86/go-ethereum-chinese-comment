@@ -227,7 +227,9 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
+	// 成功出块之后做的一些处理
 	go worker.resultLoop()
+	// 提交新的挖矿任务
 	go worker.taskLoop()
 
 	// Submit first work to initialize pending state.
@@ -386,16 +388,17 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 
 	for {
 		select {
+		// 接收startCh信号，开始挖矿
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
-
+		// 表示接收到新区块，需要终止当前的挖矿工作，开始新的挖矿
 		case head := <-w.chainHeadCh:
 			clearPending(head.Block.NumberU64())
 			timestamp = time.Now().Unix()
 			commit(false, commitInterruptNewHead)
-
+		// 默认每三秒检查一次是否有新交易需要处理。如果有则需要重新开始挖矿。以便将加高的交易优先打包到区块中。
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
@@ -452,9 +455,10 @@ func (w *worker) mainLoop() {
 
 	for {
 		select {
+		// 接收生成新的挖矿任务信号
 		case req := <-w.newWorkCh:
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
-
+		// 接收区块链中加入了一个新区块作为当前链头的旁支的信号
 		case ev := <-w.chainSideCh:
 			// Short circuit for duplicate side blocks
 			if _, exist := w.localUncles[ev.Block.Hash()]; exist {
@@ -493,7 +497,7 @@ func (w *worker) mainLoop() {
 					w.commit(uncles, nil, true, start)
 				}
 			}
-
+		// 接收交易池的Pending中新加入了交易事件的信号
 		case ev := <-w.txsCh:
 			// Apply transactions to the pending state if we're not mining.
 			//
@@ -886,14 +890,16 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-
+	// 记录开始时间
 	tstart := time.Now()
+	// 获取当前区块信息
 	parent := w.chain.CurrentBlock()
 
 	if parent.Time() >= uint64(timestamp) {
 		timestamp = int64(parent.Time() + 1)
 	}
 	num := parent.Number()
+	// 组装区块头信息
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     num.Add(num, common.Big1),
@@ -910,6 +916,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
+	// 区块头设置挖矿地址
 	if w.isRunning() {
 		if w.coinbase == (common.Address{}) {
 			log.Error("Refusing to mine without etherbase")
@@ -917,6 +924,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		header.Coinbase = w.coinbase
 	}
+	// 初始化共识引擎
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return
@@ -935,6 +943,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 	// Could potentially happen if starting to mine in an odd state.
+	// 为当前挖矿新任务创建环境
 	err := w.makeCurrent(parent, header)
 	if err != nil {
 		log.Error("Failed to create mining context", "err", err)
@@ -967,16 +976,19 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 	}
 	// Prefer to locally generated uncle
+	// 添加叔块
 	commitUncles(w.localUncles)
 	commitUncles(w.remoteUncles)
 
 	// Create an empty block based on temporary copied state for
 	// sealing in advance without waiting block execution finished.
+	// 如果noempty为false，则提交空块，不填充交易进入到区块中,表示提前挖矿
 	if !noempty && atomic.LoadUint32(&w.noempty) == 0 {
 		w.commit(uncles, nil, false, tstart)
 	}
 
 	// Fill the block with all available pending transactions.
+	// 获取交易池pending的交易
 	pending, err := w.eth.TxPool().Pending(true)
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)
@@ -990,6 +1002,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 	// Split the pending transactions into locals and remotes
+	// 从交易池中获取交易，并把交易分为本地交易和远程交易，本地交易优先，先将本地交易提交，再将外部交易提交。
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
 		if txs := remoteTxs[account]; len(txs) > 0 {
@@ -999,7 +1012,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 	if len(localTxs) > 0 {
 		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, header.BaseFee)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+		if w.commitTransactions(txs, w.coinbase, interrupt) { // 执行交易
 			return
 		}
 	}
@@ -1027,6 +1040,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			interval()
 		}
 		select {
+		// 发送通道消息去taskLoop那里进行挖矿
 		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
 			w.unconfirmed.Shift(block.NumberU64() - 1)
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
