@@ -345,6 +345,7 @@ func (n *Node) startRPC() error {
 
 	// Configure IPC.
 	if n.ipc.endpoint != "" {
+		// 开启ipc rpc server
 		if err := n.ipc.start(n.rpcAPIs); err != nil {
 			return err
 		}
@@ -381,10 +382,11 @@ func (n *Node) startRPC() error {
 			return err
 		}
 	}
-
+	// 开启http rpc server
 	if err := n.http.start(); err != nil {
 		return err
 	}
+	// 开启ws rpc server
 	return n.ws.start()
 }
 

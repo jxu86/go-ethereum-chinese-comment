@@ -301,7 +301,7 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 			return true, &shortNode{n.Key, nn, t.newFlag()}, nil
 		}
 		// Otherwise branch out at the index where they differ.
-		// 创建一个全节点
+		// 创建一个分支节点
 		branch := &fullNode{flags: t.newFlag()}
 		var err error
 		// 把旧的节点修改

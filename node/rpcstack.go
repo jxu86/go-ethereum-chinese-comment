@@ -124,6 +124,7 @@ func (h *httpServer) start() error {
 	}
 
 	// Initialize the server.
+	// 配置外部路由，路由入口函数ServeHTTP
 	h.server = &http.Server{Handler: h}
 	if h.timeouts != (rpc.HTTPTimeouts{}) {
 		CheckTimeouts(&h.timeouts)

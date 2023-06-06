@@ -491,6 +491,8 @@ func (srv *Server) Start() (err error) {
 
 func (srv *Server) setupLocalNode() error {
 	// Create the devp2p handshake.
+	// 创建devp2p握手
+	// 握手协议包括协议版本号，节点名称和节点的公钥，存入到Caps中要根据名称和协议排序。
 	pubkey := crypto.FromECDSAPub(&srv.PrivateKey.PublicKey)
 	srv.ourHandshake = &protoHandshake{Version: baseProtocolVersion, Name: srv.Name, ID: pubkey[1:]}
 	for _, p := range srv.Protocols {
@@ -499,6 +501,8 @@ func (srv *Server) setupLocalNode() error {
 	sort.Sort(capsByNameAndVersion(srv.ourHandshake.Caps))
 
 	// Create the local node.
+	// 创建本地节点
+	// 首先从节点数据库中去获取节点信息，如果不存在则新建本地节点并设置默认IP，同时将节点记录的协议特定信息存入到本地节点中。
 	db, err := enode.OpenDB(srv.Config.NodeDatabase)
 	if err != nil {
 		return err

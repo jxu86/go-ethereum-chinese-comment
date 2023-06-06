@@ -82,7 +82,7 @@ func (r *serviceRegistry) registerName(name string, rcvr interface{}) error {
 		}
 		r.services[name] = svc
 	}
-	for name, cb := range callbacks {
+	for name, cb := range callbacks { // 同一namespace的函数进行合并
 		if cb.isSubscribe {
 			svc.subscriptions[name] = cb
 		} else {
@@ -116,7 +116,7 @@ func (r *serviceRegistry) subscription(service, name string) *callback {
 func suitableCallbacks(receiver reflect.Value) map[string]*callback {
 	typ := receiver.Type()
 	callbacks := make(map[string]*callback)
-	for m := 0; m < typ.NumMethod(); m++ {
+	for m := 0; m < typ.NumMethod(); m++ { // 遍历结构体所有方法
 		method := typ.Method(m)
 		if method.PkgPath != "" {
 			continue // method not exported
